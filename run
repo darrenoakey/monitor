@@ -1,0 +1,46 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+usage() {
+    echo "Usage: $0 <command>"
+    echo ""
+    echo "Commands:"
+    echo "  serve    Serve the UI on port 8080"
+    echo "  test     Run Python tests"
+    echo "  check    Run all tests"
+    echo "  demo     Run the demo script"
+    exit 1
+}
+
+cmd_serve() {
+    echo "==> Serving UI on http://localhost:8080"
+    cd "$SCRIPT_DIR/ui"
+    python3 -m http.server 8080
+}
+
+cmd_test() {
+    echo "==> Running tests..."
+    cd "$SCRIPT_DIR"
+    python3 -m pytest lib/test_monitor.py -v
+    echo "==> Tests passed."
+}
+
+cmd_check() {
+    cmd_test
+}
+
+cmd_demo() {
+    echo "==> Running demo..."
+    cd "$SCRIPT_DIR"
+    python3 examples/demo.py
+}
+
+case "${1:-}" in
+    serve)  shift; cmd_serve "$@" ;;
+    test)   shift; cmd_test "$@" ;;
+    check)  shift; cmd_check "$@" ;;
+    demo)   shift; cmd_demo "$@" ;;
+    *)      usage ;;
+esac

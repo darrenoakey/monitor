@@ -1,0 +1,122 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #1a1a1a;
+}
+
+#viewport {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+    cursor: grab;
+}
+
+#viewport.dragging {
+    cursor: grabbing;
+}
+
+#treemap {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+}
+
+.node {
+    position: absolute;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.node-leaf {
+    display: flex;
+    flex-direction: column;
+}
+
+.node-title {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 2px 4px;
+    flex-shrink: 0;
+    line-height: 1.2;
+}
+
+.node-value {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    overflow: hidden;
+}
+
+.node-branch > .node-title {
+    background: rgba(0, 0, 0, 0.15);
+}
+
+/* Status colors */
+.status-good {
+    background-color: #2d7a2d;
+    color: #b4f0b4;
+}
+
+.status-warn {
+    background-color: #e6c619;
+    color: #000;
+}
+
+.status-bad {
+    background-color: #cc2222;
+    color: #fff;
+}
+
+.status-stale {
+    background-color: #555;
+    color: #000;
+}
+
+/* Tooltip */
+#tooltip {
+    display: none;
+    position: fixed;
+    background: rgba(0, 0, 0, 0.9);
+    color: #eee;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    max-width: 300px;
+    pointer-events: none;
+    z-index: 1000;
+    line-height: 1.4;
+    white-space: pre-wrap;
+}
+
+#tooltip .tip-name {
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+#tooltip .tip-value {
+    margin-bottom: 4px;
+}
+
+#tooltip .tip-details {
+    color: #aaa;
+}
+
+#tooltip .tip-age {
+    color: #888;
+    font-size: 11px;
+    margin-top: 4px;
+}
