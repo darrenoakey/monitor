@@ -85,6 +85,8 @@
     function buildRenderTree(node, name) {
         const item = { name: name, children: [] };
         const hasValue = node.value && typeof node.value === 'object' && node.value !== null;
+        // A "real" value means something worth displaying as a leaf (non-empty value field).
+        const hasRealValue = hasValue && !!node.value.value;
 
         // Extract info from value blob if present
         if (hasValue) {
@@ -117,8 +119,10 @@
             item.weight = 1;
         }
 
-        // Prune: if no value and no children, this node is an empty shell
-        if (!hasValue && item.children.length === 0) {
+        // Prune: a node must have at least one leaf descendant with a real
+        // non-null value to be shown. Nodes with only metadata (category
+        // weights) but no displayable leaves are suppressed.
+        if (item.children.length === 0 && !hasRealValue) {
             return null;
         }
 
@@ -341,8 +345,9 @@
         div.style.width = w + 'px';
         div.style.height = h + 'px';
 
-        // Title - absolute positioned at top
-        const titleH = Math.min(Math.max(h * 0.2, 12), 22);
+        // Title - absolute positioned at top.
+        // For thin boxes the title may need most or all of the height.
+        const titleH = Math.max(h * 0.25, 14);
         const titleDiv = document.createElement('div');
         titleDiv.className = 'node-title';
         titleDiv.style.position = 'absolute';
@@ -353,17 +358,20 @@
         titleDiv.textContent = item.displayName;
         div.appendChild(titleDiv);
 
-        // Value - absolute positioned below title, fills rest
+        // Value - absolute positioned below title, only if space remains
         const valueH = h - titleH;
-        const valueDiv = document.createElement('div');
-        valueDiv.className = 'node-value';
-        valueDiv.style.position = 'absolute';
-        valueDiv.style.top = titleH + 'px';
-        valueDiv.style.left = '0';
-        valueDiv.style.width = w + 'px';
-        valueDiv.style.height = valueH + 'px';
-        valueDiv.innerHTML = wrappableHTML(item.displayValue);
-        div.appendChild(valueDiv);
+        var valueDiv = null;
+        if (valueH > 4) {
+            valueDiv = document.createElement('div');
+            valueDiv.className = 'node-value';
+            valueDiv.style.position = 'absolute';
+            valueDiv.style.top = titleH + 'px';
+            valueDiv.style.left = '0';
+            valueDiv.style.width = w + 'px';
+            valueDiv.style.height = valueH + 'px';
+            valueDiv.innerHTML = wrappableHTML(item.displayValue);
+            div.appendChild(valueDiv);
+        }
 
         // Tooltip events
         div.addEventListener('mouseenter', function (e) {
@@ -375,11 +383,11 @@
         // Append first so we can measure
         container.appendChild(div);
 
-        // Fit title
+        // Fit title - use full box height if no room for value
         fitText(titleDiv, w - 8, titleH);
 
         // Fit value - constrained to area below title
-        fitText(valueDiv, w - 4, valueH);
+        if (valueDiv) fitText(valueDiv, w - 4, valueH);
     }
 
     // ── Tooltip ────────────────────────────────────────────────────
