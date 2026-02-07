@@ -94,11 +94,12 @@ def collect():
 
         total_gb = usage.total / (1024 ** 3)
         used_gb = usage.used / (1024 ** 3)
+        free_gb = total_gb - used_gb
         pct = max(0, (usage.used / usage.total) * 100)
 
-        if pct > 95:
+        if free_gb < 100:
             status = "bad"
-        elif pct > 80:
+        elif free_gb < 300:
             status = "warn"
         else:
             status = "good"
@@ -108,7 +109,7 @@ def collect():
             name,
             status,
             f"{pct:.0f}%",
-            max(1, int(total_gb / 100)),
+            1,
             f"{used_gb:.0f}GB / {total_gb:.0f}GB",
         ))
     return results

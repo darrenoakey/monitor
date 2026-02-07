@@ -86,7 +86,7 @@ def collect():
             name,
             status,
             value,
-            3,
+            1,
             details,
         ))
     return results

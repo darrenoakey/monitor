@@ -1,14 +1,23 @@
 """Auto process collector. Reports status of all registered services."""
 
+import os
 import re
 import subprocess
+
+
+def _find_auto():
+    """Find the auto binary, checking ~/bin first."""
+    home_bin = os.path.expanduser("~/bin/auto")
+    if os.path.isfile(home_bin) and os.access(home_bin, os.X_OK):
+        return home_bin
+    return "auto"
 
 
 def collect():
     """Return list of (path, name, status, value, weight, details) tuples."""
     try:
         result = subprocess.run(
-            ["auto", "-q", "ps"],
+            [_find_auto(), "-q", "ps"],
             capture_output=True, text=True, timeout=10,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -52,7 +61,7 @@ def collect():
             name,
             status,
             value,
-            2,
+            1,
             details,
         ))
     return results

@@ -45,6 +45,13 @@ def main():
     mon = Monitor(host=host, port=port, token=token)
     print(f"Monitor agent starting: machine={machine}, pubsub={host}:{port}")
 
+    # Publish category weights so the UI sizes groups correctly.
+    # services=3 (most important), others=1.
+    category_weights = {"services": 3, "disk": 1, "system": 1, "websites": 1}
+    for cat, w in category_weights.items():
+        mon.publish(f"{machine}/{cat}", cat, "good", "", weight=w)
+    print(f"  Published category weights: {category_weights}")
+
     # Each collector runs in its own thread with its own interval
     collectors = [
         ("disks", disks.collect, 60),

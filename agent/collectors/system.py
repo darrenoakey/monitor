@@ -65,7 +65,7 @@ def collect():
             "CPU Load",
             status,
             f"{load_pct:.0f}%",
-            4,
+            1,
             f"1m: {load1:.1f}, 5m: {load5:.1f}, 15m: {load15:.1f} ({cpu_count} cores)",
         ))
     except OSError:
@@ -86,7 +86,7 @@ def collect():
             "Memory",
             status,
             f"{mem_pct:.0f}%",
-            5,
+            1,
             mem_details,
         ))
 

@@ -61,15 +61,33 @@
                 if (!local.nodes[key]) local.nodes[key] = {};
                 mergeUpdate(local.nodes[key], update.nodes[key]);
             }
+            // Prune dead children: no value and no sub-nodes with content
+            for (const key in local.nodes) {
+                if (isDead(local.nodes[key])) {
+                    delete local.nodes[key];
+                }
+            }
         }
+    }
+
+    // A node is dead if it has no real value (null/undefined)
+    // and none of its descendants have real values.
+    function isDead(node) {
+        if (node.value !== null && node.value !== undefined) return false;
+        if (!node.nodes) return true;
+        for (const key in node.nodes) {
+            if (!isDead(node.nodes[key])) return false;
+        }
+        return true;
     }
 
     // ── Build Render Tree ──────────────────────────────────────────
     function buildRenderTree(node, name) {
         const item = { name: name, children: [] };
+        const hasValue = node.value && typeof node.value === 'object' && node.value !== null;
 
         // Extract info from value blob if present
-        if (node.value && typeof node.value === 'object' && node.value !== null) {
+        if (hasValue) {
             item.weight = node.value.weight || 1;
             item.status = node.value.status || 'good';
             item.displayName = node.value.name || name;
@@ -85,7 +103,7 @@
             item.timestamp = 0;
         }
 
-        // Build children
+        // Build children, pruning empty branches
         if (node.nodes) {
             for (const key in node.nodes) {
                 const child = buildRenderTree(node.nodes[key], key);
@@ -93,12 +111,15 @@
             }
         }
 
-        // If has children, weight = sum of children weights (unless explicit)
-        if (item.children.length > 0) {
-            const childWeightSum = item.children.reduce((s, c) => s + c.weight, 0);
-            if (!node.value || node.value.weight === undefined) {
-                item.weight = childWeightSum;
-            }
+        // Branch nodes default to weight 1, but respect an explicit weight
+        // from a published value blob (lets the agent control category sizing).
+        if (item.children.length > 0 && !hasValue) {
+            item.weight = 1;
+        }
+
+        // Prune: if no value and no children, this node is an empty shell
+        if (!hasValue && item.children.length === 0) {
+            return null;
         }
 
         return item;
@@ -219,9 +240,12 @@
         treemap.innerHTML = '';
 
         if (renderTree.children.length > 0) {
-            renderNode(renderTree, 0, 0, vw, vh, treemap);
+            // Skip the root node itself - layout its children directly
+            const rects = squarify(renderTree.children, 0, 0, vw, vh);
+            for (const rect of rects) {
+                renderNode(rect.item, rect.x, rect.y, rect.w, rect.h, treemap);
+            }
         } else if (renderTree.displayValue) {
-            // Root itself is a leaf
             renderLeaf(renderTree, 0, 0, vw, vh, treemap);
         }
 
@@ -238,7 +262,7 @@
 
         // Branch node: title bar + children area
         const div = document.createElement('div');
-        div.className = 'node node-branch';
+        div.className = 'node node-branch status-good';
         div.style.left = x + 'px';
         div.style.top = y + 'px';
         div.style.width = w + 'px';
@@ -317,17 +341,27 @@
         div.style.width = w + 'px';
         div.style.height = h + 'px';
 
-        // Title
+        // Title - absolute positioned at top
         const titleH = Math.min(Math.max(h * 0.2, 12), 22);
         const titleDiv = document.createElement('div');
         titleDiv.className = 'node-title';
+        titleDiv.style.position = 'absolute';
+        titleDiv.style.top = '0';
+        titleDiv.style.left = '0';
+        titleDiv.style.width = w + 'px';
         titleDiv.style.height = titleH + 'px';
         titleDiv.textContent = item.displayName;
         div.appendChild(titleDiv);
 
-        // Value
+        // Value - absolute positioned below title, fills rest
+        const valueH = h - titleH;
         const valueDiv = document.createElement('div');
         valueDiv.className = 'node-value';
+        valueDiv.style.position = 'absolute';
+        valueDiv.style.top = titleH + 'px';
+        valueDiv.style.left = '0';
+        valueDiv.style.width = w + 'px';
+        valueDiv.style.height = valueH + 'px';
         valueDiv.innerHTML = wrappableHTML(item.displayValue);
         div.appendChild(valueDiv);
 
@@ -344,8 +378,7 @@
         // Fit title
         fitText(titleDiv, w - 8, titleH);
 
-        // Fit value
-        const valueH = h - titleH;
+        // Fit value - constrained to area below title
         fitText(valueDiv, w - 4, valueH);
     }
 

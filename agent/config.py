@@ -11,11 +11,15 @@ def machine_name():
         return name
     # Use hostname, lowercased, stripped of .local
     h = socket.gethostname().lower().replace(".local", "")
-    # Simplify common patterns
-    for suffix in ("-mbp", "-macbook-pro", "-imac"):
-        if h.endswith(suffix):
-            h = h[: -len(suffix)]
-    return h.replace(" ", "-").replace("'", "").replace("'", "")
+    # Map common hostname patterns to clean machine names
+    h = h.replace("'", "").replace("\u2019", "").replace(" ", "-")
+    if "-mbp" in h or "macbook" in h:
+        return "mac-pro"
+    if "-mini" in h or "mac-mini" in h:
+        return "mac-mini"
+    if "-imac" in h:
+        return "imac"
+    return h
 
 
 def pubsub_host():
