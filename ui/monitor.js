@@ -10,8 +10,9 @@
         prefix: 'monitor'
     };
 
-    // Token is loaded from query param ?token=... or prompt
-    let TOKEN = new URLSearchParams(location.search).get('token') || '';
+    // Token: query param > localStorage > prompt
+    let TOKEN = new URLSearchParams(location.search).get('token')
+        || localStorage.getItem('monitor_token') || '';
 
     // ── State ──────────────────────────────────────────────────────
     let localTree = {};   // merged tree from pubsub deltas
@@ -264,6 +265,44 @@
         }
     }
 
+    // Wrap text into spans: each "token" (number-with-dots or word) is a
+    // nowrap unit, with line-break opportunities only between tokens.
+    function wrappableHTML(str) {
+        // Split at number/letter boundaries and spaces
+        const tokens = str.match(/[\d.]+|[a-zA-Z]+|[^\s\da-zA-Z]+|\s+/g) || [str];
+        return tokens.map(function (t) {
+            if (/^\s+$/.test(t)) return ' ';
+            return '<span style="white-space:nowrap">' + esc(t) + '</span>\u200B';
+        }).join('');
+    }
+
+    // Fit text by measuring an inner span against the container bounds.
+    // Wraps content in a span so we measure text size, not container size.
+    function fitText(el, maxW, maxH) {
+        let span = el.querySelector('.fit-span');
+        if (!span) {
+            span = document.createElement('span');
+            span.className = 'fit-span';
+            // Move all child nodes into the span
+            while (el.firstChild) span.appendChild(el.firstChild);
+            el.appendChild(span);
+        }
+        if (maxW < 2 || maxH < 2) return;
+
+        // Binary search for the largest font size that fits
+        let lo = 4, hi = Math.max(Math.min(maxW, maxH) * 1.5, 8);
+        while (hi - lo > 0.5) {
+            const mid = (lo + hi) / 2;
+            span.style.fontSize = mid + 'px';
+            if (span.offsetWidth <= maxW && span.offsetHeight <= maxH) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        span.style.fontSize = lo + 'px';
+    }
+
     function renderLeaf(item, x, y, w, h, container) {
         if (w < 1 || h < 1) return;
 
@@ -283,16 +322,13 @@
         const titleDiv = document.createElement('div');
         titleDiv.className = 'node-title';
         titleDiv.style.height = titleH + 'px';
-        titleDiv.style.fontSize = Math.max(titleH * 0.7, 8) + 'px';
         titleDiv.textContent = item.displayName;
         div.appendChild(titleDiv);
 
         // Value
         const valueDiv = document.createElement('div');
         valueDiv.className = 'node-value';
-        const valueFontSize = Math.min(w * 0.25, (h - titleH) * 0.5, 48);
-        valueDiv.style.fontSize = Math.max(valueFontSize, 8) + 'px';
-        valueDiv.textContent = item.displayValue;
+        valueDiv.innerHTML = wrappableHTML(item.displayValue);
         div.appendChild(valueDiv);
 
         // Tooltip events
@@ -302,7 +338,15 @@
         div.addEventListener('mousemove', positionTooltip);
         div.addEventListener('mouseleave', hideTooltip);
 
+        // Append first so we can measure
         container.appendChild(div);
+
+        // Fit title
+        fitText(titleDiv, w - 8, titleH);
+
+        // Fit value
+        const valueH = h - titleH;
+        fitText(valueDiv, w - 4, valueH);
     }
 
     // ── Tooltip ────────────────────────────────────────────────────
@@ -417,11 +461,9 @@
     async function init() {
         if (!TOKEN) {
             TOKEN = prompt('Enter pubsub token:') || '';
-            if (TOKEN) {
-                const url = new URL(location.href);
-                url.searchParams.set('token', TOKEN);
-                history.replaceState(null, '', url.toString());
-            }
+        }
+        if (TOKEN) {
+            localStorage.setItem('monitor_token', TOKEN);
         }
 
         await poll();
@@ -436,9 +478,13 @@
         }, CONFIG.pollInterval);
     }
 
+    let resizeTimer;
     window.addEventListener('resize', function () {
-        needsRender = true;
-        render();
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function () {
+            needsRender = true;
+            render();
+        }, 150);
     });
 
     init();

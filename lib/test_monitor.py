@@ -36,9 +36,12 @@ def get_from_pubsub(path):
         return json.loads(resp.read())
 
 
+TEST_PREFIX = "testing"
+
+
 @pytest.fixture
 def mon():
-    return Monitor(token=TOKEN)
+    return Monitor(token=TOKEN, prefix=TEST_PREFIX)
 
 
 class TestPublish:
@@ -46,7 +49,7 @@ class TestPublish:
         path = unique_path()
         mon.publish(path, "Test Node", "good", "42%", weight=5, details="test details")
 
-        result = get_from_pubsub(f"monitor/{path}")
+        result = get_from_pubsub(f"{TEST_PREFIX}/{path}")
         blob = result["value"]
         assert blob["name"] == "Test Node"
         assert blob["status"] == "good"
@@ -65,7 +68,7 @@ class TestPublish:
         path = unique_path()
         mon.publish(path, "Node", "warn", "80%")
 
-        result = get_from_pubsub(f"monitor/{path}")
+        result = get_from_pubsub(f"{TEST_PREFIX}/{path}")
         blob = result["value"]
         assert blob["weight"] == 1
 
@@ -73,7 +76,7 @@ class TestPublish:
         path = unique_path()
         mon.publish(path, "Disk", "warn", "85%")
 
-        result = get_from_pubsub(f"monitor/{path}")
+        result = get_from_pubsub(f"{TEST_PREFIX}/{path}")
         blob = result["value"]
         assert blob["status"] == "warn"
 
@@ -81,7 +84,7 @@ class TestPublish:
         path = unique_path()
         mon.publish(path, "CPU", "bad", "99%")
 
-        result = get_from_pubsub(f"monitor/{path}")
+        result = get_from_pubsub(f"{TEST_PREFIX}/{path}")
         blob = result["value"]
         assert blob["status"] == "bad"
 
@@ -91,7 +94,7 @@ class TestPublish:
         mon.publish(path, "Node", "good", "ok")
         after = time.time()
 
-        result = get_from_pubsub(f"monitor/{path}")
+        result = get_from_pubsub(f"{TEST_PREFIX}/{path}")
         blob = result["value"]
         assert before <= blob["timestamp"] <= after
 
@@ -116,7 +119,7 @@ class TestDelete:
         mon.publish(path, "Node", "good", "ok")
         mon.delete(path)
 
-        result = get_from_pubsub(f"monitor/{path}")
+        result = get_from_pubsub(f"{TEST_PREFIX}/{path}")
         assert result.get("value") is None
 
     def test_delete_returns_time(self, mon):

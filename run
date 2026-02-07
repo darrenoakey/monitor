@@ -7,17 +7,22 @@ usage() {
     echo "Usage: $0 <command>"
     echo ""
     echo "Commands:"
-    echo "  serve    Serve the UI on port 8080"
+    echo "  agent    Run the monitoring agent"
+    echo "  serve    Serve the UI on port 8090"
     echo "  test     Run Python tests"
     echo "  check    Run all tests"
-    echo "  demo     Run the demo script"
     exit 1
 }
 
+cmd_agent() {
+    cd "$SCRIPT_DIR"
+    exec python3 -u agent/agent.py "$@"
+}
+
 cmd_serve() {
-    echo "==> Serving UI on http://localhost:8080"
+    echo "==> Serving UI on http://localhost:8090"
     cd "$SCRIPT_DIR/ui"
-    python3 -m http.server 8080
+    python3 -m http.server 8090
 }
 
 cmd_test() {
@@ -31,16 +36,10 @@ cmd_check() {
     cmd_test
 }
 
-cmd_demo() {
-    echo "==> Running demo..."
-    cd "$SCRIPT_DIR"
-    python3 examples/demo.py
-}
-
 case "${1:-}" in
+    agent)  shift; cmd_agent "$@" ;;
     serve)  shift; cmd_serve "$@" ;;
     test)   shift; cmd_test "$@" ;;
     check)  shift; cmd_check "$@" ;;
-    demo)   shift; cmd_demo "$@" ;;
     *)      usage ;;
 esac

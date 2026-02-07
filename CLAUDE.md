@@ -19,6 +19,6 @@
 - Token read from `~/src/pubsub/data/token`
 
 ## Commands
-- `./run serve` - serve UI on port 8080
+- `./run serve` - serve UI on port 8090
 - `./run test` - run Python tests
 - `./run demo` - run demo data publisher

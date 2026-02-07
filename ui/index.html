@@ -4,13 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitor - Treemap Dashboard</title>
-    <link rel="stylesheet" href="style.css">
+    <script>
+        var _cb = Date.now();
+        document.write('<link rel="stylesheet" href="style.css?' + _cb + '">');
+    </script>
 </head>
 <body>
     <div id="viewport">
         <div id="treemap"></div>
     </div>
     <div id="tooltip"></div>
-    <script src="monitor.js"></script>
+    <script>
+        document.write('<script src="monitor.js?' + _cb + '"><\/script>');
+    </script>
 </body>
 </html>

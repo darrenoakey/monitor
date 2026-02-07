@@ -59,6 +59,13 @@ html, body {
     justify-content: center;
     font-weight: 700;
     overflow: hidden;
+    text-align: center;
+    padding: 0 2px;
+}
+
+.fit-span {
+    display: inline-block;
+    line-height: 1.1;
 }
 
 .node-branch > .node-title {
