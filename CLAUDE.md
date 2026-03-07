@@ -26,13 +26,21 @@
 - Branch nodes always green (`status-good`); leaf weight from published blob
 - Branch node weight: explicit from value blob if present, else 1
 - Dead subtree pruning: `isDead()` removes null-valued branches during `mergeUpdate()`
-- Leaf title/value use absolute positioning to prevent overlap
-- `fitText()` binary search for largest font fitting container
+- Leaf title/value both use full cell height with overlapping absolute positioning
+  - Title: top-left, width constrained to 45%, font capped at `h*0.25`
+  - Value: centered in full cell, larger font
+- Aspect ratio control: `squarify()` post-process splits >4 children into two
+  pseudo-groups (by weight) when any cell exceeds 6:1 aspect ratio, then
+  re-layouts each group in its own container (recursive)
+- `fitText()` binary search for largest font fitting container; accepts optional `maxFont` cap
 - `wrappableHTML()` wraps tokens in nowrap spans with zero-width-space break opportunities
-- Token: URL query param > localStorage > prompt
+- Token: URL query param > server-injected meta tag > prompt
+- UI server (`ui/server.py`): content-hash cache-busting, per-client prefs via cookies
+- Static files in `ui/static/`, served with immutable cache headers
+- **Must restart via `auto` after modifying static files** to recompute hashes
 
 ## Testing
-- Python tests: `./run test` (11 tests, real integration against pubsub)
+- Python tests: `./run test` (real integration against pubsub)
 - Tests use `/testing` prefix (not `/monitor`) to keep production data clean
 - Pubsub must be running for tests
 - Token read from `~/src/pubsub/data/token`
