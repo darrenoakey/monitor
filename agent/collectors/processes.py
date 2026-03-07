@@ -20,7 +20,7 @@ def collect():
             [_find_auto(), "-q", "ps"],
             capture_output=True, text=True, timeout=10,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except Exception:
         return []
 
     results = []

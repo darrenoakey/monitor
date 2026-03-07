@@ -19,8 +19,11 @@ def _load_targets():
     if not os.path.exists(AUTOGUI_STATE):
         return targets
 
-    with open(AUTOGUI_STATE) as f:
-        state = json.load(f)
+    try:
+        with open(AUTOGUI_STATE) as f:
+            state = json.load(f)
+    except (PermissionError, OSError, json.JSONDecodeError):
+        return targets
 
     # Add registered websites
     for name, site in state.get("websites", {}).items():

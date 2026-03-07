@@ -2,7 +2,11 @@
 
 import json
 import time
+import urllib.error
 import urllib.request
+
+# Timeout for all HTTP calls to pubsub (seconds).
+HTTP_TIMEOUT = 10
 
 
 class Monitor:
@@ -12,6 +16,7 @@ class Monitor:
         self.base_url = f"http://{host}:{port}"
         self.token = token
         self.prefix = prefix
+        self._last_error_log = 0  # rate-limit error logging
 
     def publish(self, path, name, status, value, weight=1, details=""):
         """Publish a status blob to pubsub.
@@ -23,6 +28,12 @@ class Monitor:
             value: Value string shown in center of treemap box.
             weight: Relative importance among siblings (must be > 0).
             details: Tooltip text shown on hover.
+
+        Returns:
+            Response dict from pubsub, or None if the publish failed.
+
+        Raises:
+            ValueError: If status or weight are invalid (programming errors).
         """
         if status not in ("good", "warn", "bad"):
             raise ValueError(f"status must be good/warn/bad, got {status!r}")
@@ -43,13 +54,28 @@ class Monitor:
         body = json.dumps(blob).encode()
         req = urllib.request.Request(url, data=body, method="POST")
         req.add_header("Content-Type", "application/json")
-        with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read())
+        try:
+            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+                return json.loads(resp.read())
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            self._log_error(f"publish {path}: {e}")
+            return None
 
     def delete(self, path):
-        """Delete a value from pubsub."""
+        """Delete a value from pubsub. Returns response dict or None."""
         full_path = f"{self.prefix}/{path}" if self.prefix else path
         url = f"{self.base_url}/del/{full_path}?token={self.token}"
         req = urllib.request.Request(url)
-        with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read())
+        try:
+            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+                return json.loads(resp.read())
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            self._log_error(f"delete {path}: {e}")
+            return None
+
+    def _log_error(self, msg):
+        """Log errors at most once per 60 seconds to avoid log spam."""
+        now = time.time()
+        if now - self._last_error_log > 60:
+            print(f"  [pubsub] {msg}")
+            self._last_error_log = now

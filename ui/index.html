@@ -4,18 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitor - Treemap Dashboard</title>
-    <script>
-        var _cb = Date.now();
-        document.write('<link rel="stylesheet" href="style.css?' + _cb + '">');
-    </script>
+    <meta name="pubsub-token" content="{{ token }}">
+    <link rel="stylesheet" href="{{ static:style.css }}">
 </head>
 <body>
     <div id="viewport">
         <div id="treemap"></div>
     </div>
     <div id="tooltip"></div>
-    <script>
-        document.write('<script src="monitor.js?' + _cb + '"><\/script>');
-    </script>
+    <div id="context-menu"></div>
+    <script src="{{ static:monitor.js }}"></script>
 </body>
 </html>

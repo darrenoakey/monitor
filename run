@@ -20,9 +20,8 @@ cmd_agent() {
 }
 
 cmd_serve() {
-    echo "==> Serving UI on http://localhost:8090"
-    cd "$SCRIPT_DIR/ui"
-    python3 -m http.server 8090
+    cd "$SCRIPT_DIR"
+    exec python3 ui/server.py 8090
 }
 
 cmd_test() {

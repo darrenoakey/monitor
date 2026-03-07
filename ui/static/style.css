@@ -127,3 +127,26 @@ html, body {
     font-size: 11px;
     margin-top: 4px;
 }
+
+/* Context menu */
+#context-menu {
+    display: none;
+    position: fixed;
+    background: rgba(0, 0, 0, 0.92);
+    color: #eee;
+    border-radius: 4px;
+    font-size: 13px;
+    z-index: 2000;
+    min-width: 120px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    padding: 4px 0;
+}
+
+#context-menu .menu-item {
+    padding: 6px 16px;
+    cursor: pointer;
+}
+
+#context-menu .menu-item:hover {
+    background: rgba(255, 255, 255, 0.15);
+}

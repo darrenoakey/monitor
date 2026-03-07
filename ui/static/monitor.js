@@ -10,14 +10,37 @@
         prefix: 'monitor'
     };
 
-    // Token: query param > localStorage > prompt
+    // Token: query param > server-injected meta tag
     let TOKEN = new URLSearchParams(location.search).get('token')
-        || localStorage.getItem('monitor_token') || '';
+        || (document.querySelector('meta[name="pubsub-token"]') || {}).content || '';
 
     // ── State ──────────────────────────────────────────────────────
     let localTree = {};   // merged tree from pubsub deltas
     let lastTime = 0;     // pubsub time for delta polling
     let needsRender = true;
+
+    // Hidden paths (server-persisted)
+    let hiddenPaths = new Set();
+
+    function savePrefs() {
+        var payload = { hidden: [...hiddenPaths] };
+        fetch('/prefs', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(function () {
+            console.log('Saved prefs:', payload.hidden.length, 'hidden paths');
+        }).catch(function (err) { console.warn('savePrefs failed:', err); });
+    }
+
+    function loadPrefs() {
+        return fetch('/prefs').then(function (r) { return r.json(); }).then(function (prefs) {
+            if (prefs.hidden) {
+                hiddenPaths = new Set(prefs.hidden);
+                console.log('Loaded prefs: hiding', prefs.hidden.length, 'paths');
+            }
+        }).catch(function (err) { console.warn('loadPrefs failed:', err); });
+    }
 
     // Zoom/pan state
     let scale = 1;
@@ -82,8 +105,11 @@
     }
 
     // ── Build Render Tree ──────────────────────────────────────────
-    function buildRenderTree(node, name) {
-        const item = { name: name, children: [] };
+    function buildRenderTree(node, name, parentPath) {
+        const path = parentPath ? parentPath + '/' + name : name;
+        if (hiddenPaths.has(path)) return null;
+
+        const item = { name: name, path: path, children: [] };
         const hasValue = node.value && typeof node.value === 'object' && node.value !== null;
         // A "real" value means something worth displaying as a leaf (non-empty value field).
         const hasRealValue = hasValue && !!node.value.value;
@@ -108,7 +134,7 @@
         // Build children, pruning empty branches
         if (node.nodes) {
             for (const key in node.nodes) {
-                const child = buildRenderTree(node.nodes[key], key);
+                const child = buildRenderTree(node.nodes[key], key, path);
                 if (child) item.children.push(child);
             }
         }
@@ -132,14 +158,70 @@
     // ── Squarified Treemap Layout ──────────────────────────────────
     function squarify(items, x, y, w, h) {
         if (items.length === 0 || w <= 0 || h <= 0) return [];
-        const rects = [];
         const totalWeight = items.reduce((s, i) => s + i.weight, 0);
         if (totalWeight <= 0) return [];
 
         // Sort by weight descending
         const sorted = items.slice().sort((a, b) => b.weight - a.weight);
+
+        // Standard layout
+        const rects = [];
         layoutItems(sorted, x, y, w, h, totalWeight, rects);
+
+        // If >4 children and any cell has aspect ratio worse than 8:1,
+        // split into two pseudo-groups and re-layout
+        if (items.length > 4) {
+            const hasBadRatio = rects.some(function (r) {
+                return r.w > 0 && r.h > 0 && Math.max(r.w / r.h, r.h / r.w) > 6;
+            });
+            if (hasBadRatio) {
+                return squarifyWithSplit(sorted, x, y, w, h, totalWeight);
+            }
+        }
+
         return rects;
+    }
+
+    function squarifyWithSplit(sorted, x, y, w, h, totalWeight) {
+        // Split items into two groups, as close to half by weight as possible
+        const halfWeight = totalWeight / 2;
+        var group1 = [], group2 = [];
+        var g1Weight = 0;
+        for (var i = 0; i < sorted.length; i++) {
+            if (g1Weight < halfWeight && group1.length < sorted.length - 1) {
+                group1.push(sorted[i]);
+                g1Weight += sorted[i].weight;
+            } else {
+                group2.push(sorted[i]);
+            }
+        }
+
+        if (group1.length === 0 || group2.length === 0) {
+            // Can't split meaningfully, return standard layout
+            var rects = [];
+            layoutItems(sorted, x, y, w, h, totalWeight, rects);
+            return rects;
+        }
+
+        var g2Weight = totalWeight - g1Weight;
+
+        // Layout two pseudo-nodes
+        var pseudoItems = [
+            { weight: g1Weight, _group: group1 },
+            { weight: g2Weight, _group: group2 }
+        ];
+        pseudoItems.sort(function (a, b) { return b.weight - a.weight; });
+        var pseudoRects = [];
+        layoutItems(pseudoItems, x, y, w, h, totalWeight, pseudoRects);
+
+        // Recursively squarify each group within its allocated rect
+        var result = [];
+        for (var j = 0; j < pseudoRects.length; j++) {
+            var pr = pseudoRects[j];
+            var groupRects = squarify(pr.item._group, pr.x, pr.y, pr.w, pr.h);
+            result.push.apply(result, groupRects);
+        }
+        return result;
     }
 
     function layoutItems(items, x, y, w, h, totalWeight, rects) {
@@ -240,7 +322,7 @@
         treemap.style.width = vw + 'px';
         treemap.style.height = vh + 'px';
 
-        const renderTree = buildRenderTree(localTree, 'root');
+        const renderTree = buildRenderTree(localTree, 'root', '');
         treemap.innerHTML = '';
 
         if (renderTree.children.length > 0) {
@@ -267,6 +349,7 @@
         // Branch node: title bar + children area
         const div = document.createElement('div');
         div.className = 'node node-branch status-good';
+        div.dataset.path = item.path;
         div.style.left = x + 'px';
         div.style.top = y + 'px';
         div.style.width = w + 'px';
@@ -306,7 +389,7 @@
 
     // Fit text by measuring an inner span against the container bounds.
     // Wraps content in a span so we measure text size, not container size.
-    function fitText(el, maxW, maxH) {
+    function fitText(el, maxW, maxH, maxFont) {
         let span = el.querySelector('.fit-span');
         if (!span) {
             span = document.createElement('span');
@@ -319,6 +402,7 @@
 
         // Binary search for the largest font size that fits
         let lo = 4, hi = Math.max(Math.min(maxW, maxH) * 1.5, 8);
+        if (maxFont) hi = Math.min(hi, maxFont);
         while (hi - lo > 0.5) {
             const mid = (lo + hi) / 2;
             span.style.fontSize = mid + 'px';
@@ -340,35 +424,34 @@
 
         const div = document.createElement('div');
         div.className = 'node node-leaf ' + statusClass;
+        div.dataset.path = item.path;
         div.style.left = x + 'px';
         div.style.top = y + 'px';
         div.style.width = w + 'px';
         div.style.height = h + 'px';
 
-        // Title - absolute positioned at top.
-        // For thin boxes the title may need most or all of the height.
-        const titleH = Math.max(h * 0.25, 14);
+        // Title - absolute positioned top-left, full cell height.
+        // Overlaps with value area since title is left-aligned and value is centered.
         const titleDiv = document.createElement('div');
         titleDiv.className = 'node-title';
         titleDiv.style.position = 'absolute';
         titleDiv.style.top = '0';
         titleDiv.style.left = '0';
         titleDiv.style.width = w + 'px';
-        titleDiv.style.height = titleH + 'px';
+        titleDiv.style.height = h + 'px';
         titleDiv.textContent = item.displayName;
         div.appendChild(titleDiv);
 
-        // Value - absolute positioned below title, only if space remains
-        const valueH = h - titleH;
+        // Value - absolute positioned, full cell, centered.
         var valueDiv = null;
-        if (valueH > 4) {
+        if (item.displayValue) {
             valueDiv = document.createElement('div');
             valueDiv.className = 'node-value';
             valueDiv.style.position = 'absolute';
-            valueDiv.style.top = titleH + 'px';
+            valueDiv.style.top = '0';
             valueDiv.style.left = '0';
             valueDiv.style.width = w + 'px';
-            valueDiv.style.height = valueH + 'px';
+            valueDiv.style.height = h + 'px';
             valueDiv.innerHTML = wrappableHTML(item.displayValue);
             div.appendChild(valueDiv);
         }
@@ -383,11 +466,12 @@
         // Append first so we can measure
         container.appendChild(div);
 
-        // Fit title - use full box height if no room for value
-        fitText(titleDiv, w - 8, titleH);
+        // Fit title - constrain width to 45% so it stays small and left-aligned,
+        // full height so it never clips vertically, cap font scales with cell
+        fitText(titleDiv, w * 0.45, h, Math.max(h * 0.25, 10));
 
-        // Fit value - constrained to area below title
-        if (valueDiv) fitText(valueDiv, w - 4, valueH);
+        // Fit value - full cell
+        if (valueDiv) fitText(valueDiv, w - 4, h);
     }
 
     // ── Tooltip ────────────────────────────────────────────────────
@@ -498,15 +582,60 @@
         translateY = Math.min(0, Math.max(translateY, vh - contentH));
     }
 
+    // ── Context Menu ─────────────────────────────────────────────
+    const contextMenu = document.getElementById('context-menu');
+
+    let contextMenuPath = '';
+
+    document.addEventListener('contextmenu', function (e) {
+        const node = e.target.closest('.node[data-path]');
+        if (!node) { dismissContextMenu(); return; }
+        e.preventDefault();
+        contextMenuPath = node.dataset.path;
+
+        contextMenu.innerHTML = '<div class="menu-item" data-action="hide">Hide</div>';
+        contextMenu.style.display = 'block';
+
+        // Position, keeping on screen
+        let mx = e.clientX;
+        let my = e.clientY;
+        const menuW = contextMenu.offsetWidth;
+        const menuH = contextMenu.offsetHeight;
+        if (mx + menuW > window.innerWidth) mx = window.innerWidth - menuW;
+        if (my + menuH > window.innerHeight) my = window.innerHeight - menuH;
+        contextMenu.style.left = mx + 'px';
+        contextMenu.style.top = my + 'px';
+    });
+
+    contextMenu.addEventListener('click', function (ev) {
+        const action = ev.target.dataset.action;
+        if (action === 'hide' && contextMenuPath) {
+            hiddenPaths.add(contextMenuPath);
+            savePrefs();
+            needsRender = true;
+            render();
+        }
+        dismissContextMenu();
+    });
+
+    function dismissContextMenu() {
+        contextMenu.style.display = 'none';
+        contextMenuPath = '';
+    }
+
+    document.addEventListener('mousedown', function (e) {
+        if (!contextMenu.contains(e.target)) dismissContextMenu();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') dismissContextMenu();
+    });
+
     // ── Main Loop ──────────────────────────────────────────────────
     async function init() {
         if (!TOKEN) {
             TOKEN = prompt('Enter pubsub token:') || '';
         }
-        if (TOKEN) {
-            localStorage.setItem('monitor_token', TOKEN);
-        }
-
+        await loadPrefs();
         await poll();
         render();
 
