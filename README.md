@@ -127,3 +127,7 @@ monitor.publish("/monitor/queues/emails", weight=5, status="bad",
 monitor.publish("/monitor/cache/redis", weight=12, status="good",
                 name="Redis", value="98% hit rate")
 ```
+
+## License
+
+This project is licensed under [CC BY-NC 4.0](https://darren-static.waft.dev) - free to use and modify, but no commercial use without permission.
